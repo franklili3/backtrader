@@ -37,17 +37,11 @@ class Trades(Observer):
     is then closed when it goes back to 0 (or crosses over 0 in the opposite
     direction)
 
-    Params:
-      - ``pnlcomm`` (def: ``True``)
-
-        Show net/profit and loss, i.e.: after commission. If set to ``False``
-        if will show the result of trades before commission
+    Params: None
     '''
     _stclock = True
 
     lines = ('pnlplus', 'pnlminus')
-
-    params = dict(pnlcomm=True)
 
     plotinfo = dict(plot=True, subplot=True,
                     plotname='Trades - Net Profit/Loss',
@@ -90,18 +84,16 @@ class Trades(Observer):
 
     def next(self):
         for trade in self._owner._tradespending:
-            if trade.data not in self.ddatas:
+            if trade.data not in self.datas:
                 continue
 
             if not trade.isclosed:
                 continue
 
-            pnl = trade.pnlcomm if self.p.pnlcomm else trade.pnl
-
-            if pnl >= 0.0:
-                self.lines.pnlplus[0] = pnl
+            if trade.pnl >= 0:
+                self.lines.pnlplus[0] = trade.pnl
             else:
-                self.lines.pnlminus[0] = pnl
+                self.lines.pnlminus[0] = trade.pnl
 
 
 class MetaDataTrades(Observer.__class__):
@@ -153,7 +145,7 @@ class DataTrades(with_metaclass(MetaDataTrades, Observer)):
 
     def next(self):
         for trade in self._owner._tradespending:
-            if trade.data not in self.ddatas:
+            if trade.data not in self.datas:
                 continue
 
             if not trade.isclosed:

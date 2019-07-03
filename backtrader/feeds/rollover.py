@@ -152,10 +152,7 @@ class RollOver(bt.with_metaclass(MetaRollOver, bt.DataBase)):
 
     def _load(self):
         while self._d is not None:
-            _next = self._d.next()
-            if _next is None:  # no values yet, more will come
-                continue
-            if _next is False:  # no values from current data src
+            if self._d.next() is not False:  # no values from current data src
                 if self._ds:
                     self._d = self._ds.pop(0)
                     self._dts.pop(0)
@@ -169,8 +166,7 @@ class RollOver(bt.with_metaclass(MetaRollOver, bt.DataBase)):
             for i, d_dt in enumerate(zip(self._ds, self._dts)):
                 d, dt = d_dt
                 while dt < dt0:
-                    if d.next() is None:
-                        continue
+                    d.next()
                     self._dts[i] = dt = d.datetime.datetime()
 
             # Move expired future as much as needed

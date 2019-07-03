@@ -548,8 +548,9 @@ class MetaLineActions(LineBuffer.__class__):
         # Do not produce anything until the operation lines produce something
         _minperiods = [x._minperiod for x in args if isinstance(x, LineSingle)]
 
-        mlines = [x.lines[0] for x in args if isinstance(x, LineMultiple)]
-        _minperiods += [x._minperiod for x in mlines]
+        if not _minperiods:
+            mlines = [x.lines[0] for x in args if isinstance(x, LineMultiple)]
+            _minperiods = [x._minperiod for x in mlines]
 
         _minperiod = max(_minperiods or [1])
 
