@@ -23,31 +23,10 @@ class diff_pct_close_ema_ind(bt.Indicator):
         # Add a MovingAverageSimple indicator
         self.ema = bt.indicators.ExplonentialMovingAverage(
                 self.datas[0], period=self.params.emaperiod)
-        self.dataclose = self.datas[0].close
-        self.lines.dpce = (self.dataclose - self.ema) / self.ema
         
     def next(self):
-        self.diff_pct_close_ema_list.append(self.diff_pct_close_ema)
-       
-        if len(self.diff_pct_close_ema_list) % self.longPeriod == 0:
-            self.diff_pct_close_ema_mean = statistics.mean(self.diff_pct_close_ema_list)
-            self.diff_pct_close_ema_std = statistics.stdev(self.diff_pct_close_ema_list)
-            self.negative_abnormal = self.diff_pct_close_ema_mean - 1.96* self.diff_pct_close_ema_std
-            self.positive_abnormal = self.diff_pct_close_ema_mean + 1.96* self.diff_pct_close_ema_std
-            self.diff_pct_close_ema_list = []
-        if self.negative_abnormal is not None:
-            if not self.Portfolio.Invested and self.Diff_pct_close_emaIsOverNegativeAbnormal and self.diff_pct_close_ema < self.negative_abnormal:
-                self.SetHoldings(self.symbol, 1, True, 'Long')
-            elif not self.Portfolio.Invested and self.PositiveAbnormalIsOverDiff_pct_close_ema and self.diff_pct_close_ema > self.positive_abnormal:
-                self.SetHoldings(self.symbol, -1, True, 'Short')
-            elif self.Portfolio[self.symbol].IsLong and self.MeanIsOverDiff_pct_close_ema and self.diff_pct_close_ema > self.diff_pct_close_ema_mean:
-                self.Liquidate(self.symbol, 'Cover')
-            elif self.Portfolio[self.symbol].IsShort and self.Diff_pct_close_emaIsOverMean and self.diff_pct_close_ema < self.diff_pct_close_ema_mean:
-                self.Liquidate(self.symbol, 'Cover')
-            self.PositiveAbnormalIsOverDiff_pct_close_ema = self.positive_abnormal > self.diff_pct_close_ema
-            self.Diff_pct_close_emaIsOverNegativeAbnormal = self.diff_pct_close_ema > self.negative_abnormal
-            self.MeanIsOverDiff_pct_close_ema = self.diff_pct_close_ema < self.diff_pct_close_ema_mean
-            self.Diff_pct_close_emaIsOverMean = not self.MeanIsOverDiff_pct_close_ema
+        self.dataclose = self.datas[0].close
+        self.lines.dpce[0] = self.dataclose / self.ema[0] - 1
  
 # Create a Stratey
 class EmaMeanReversionStrategy(bt.Strategy):
@@ -131,7 +110,7 @@ class EmaMeanReversionStrategy(bt.Strategy):
         # Check if we are in the market
         if not self.position:
             if self.ema[0] == 0: return
-            self.diff_pct_close_ema_list.append(self.diff_pct_close_ema)
+            self.diff_pct_close_ema_list.append(self.dpce[0])
        
             if len(self.diff_pct_close_ema_list) % self.longPeriod == 0:
                 self.diff_pct_close_ema_mean = statistics.mean(self.diff_pct_close_ema_list)
@@ -140,56 +119,57 @@ class EmaMeanReversionStrategy(bt.Strategy):
                 self.positive_abnormal = self.diff_pct_close_ema_mean + self.diff_pct_close_ema_std
                 self.diff_pct_close_ema_list = []
             if self.negative_abnormal is not None:
-                if not self.Portfolio.Invested and self.Diff_pct_close_emaIsOverNegativeAbnormal and self.diff_pct_close_ema < self.negative_abnormal:
-                    self.SetHoldings(self.symbol, 1, True, 'Long')
-                    self.Plot('Trade', 'Long', data[self.symbol].Value)
-                    self.Plot('Trade', 'Deviation Degree%', self.diff_pct_close_ema * 100)
-                elif not self.Portfolio.Invested and self.PositiveAbnormalIsOverDiff_pct_close_ema and self.diff_pct_close_ema > self.positive_abnormal:
-                    self.SetHoldings(self.symbol, -1, True, 'Short')
-                    self.Plot('Trade', 'Short', data[self.symbol].Value)
-                    self.Plot('Trade', 'Deviation Degree', self.diff_pct_close_ema)
-                elif self.Portfolio[self.symbol].IsLong and self.MeanIsOverDiff_pct_close_ema and self.diff_pct_close_ema > self.diff_pct_close_ema_mean:
-                    self.Liquidate(self.symbol, 'Cover')
-                    self.Plot('Trade', 'Cover', data[self.symbol].Value)
-                    self.Plot('Trade', 'Deviation Degree%', self.diff_pct_close_ema * 100)
-                elif self.Portfolio[self.symbol].IsShort and self.Diff_pct_close_emaIsOverMean and self.diff_pct_close_ema < self.diff_pct_close_ema_mean:
-                    self.Liquidate(self.symbol, 'Cover')
-                    self.Plot('Trade', 'Cover', data[self.symbol].Value)
-                    self.Plot('Trade', 'Deviation Degree', self.diff_pct_close_ema)
-                self.PositiveAbnormalIsOverDiff_pct_close_ema = self.positive_abnormal > self.diff_pct_close_ema
-                self.Diff_pct_close_emaIsOverNegativeAbnormal = self.diff_pct_close_ema > self.negative_abnormal
-                self.MeanIsOverDiff_pct_close_ema = self.diff_pct_close_ema < self.diff_pct_close_ema_mean
+                if not self.Portfolio.Invested and self.Diff_pct_close_emaIsOverNegativeAbnormal and self.dpce[0] < self.negative_abnormal:
+                    # BUY, BUY, BUY!!! (with all possible default parameters)
+                    self.log('BUY CREATE, %.2f' % self.dataclose[0])
+                    # Keep track of the created order to avoid a 2nd order
+                    self.order = self.buy()
+                elif not self.Portfolio.Invested and self.PositiveAbnormalIsOverDiff_pct_close_ema and self.dpce[0] > self.positive_abnormal:
+                    # SELL, SELL, SELL!!! (with all possible default parameters)
+                    self.log('SELL CREATE, %.2f' % self.dataclose[0])
+                    # Keep track of the created order to avoid a 2nd order
+                    self.order = self.sell()
+                elif self.Portfolio[self.symbol].IsLong and self.MeanIsOverDiff_pct_close_ema and self.dpce[0] > self.diff_pct_close_ema_mean:
+                    # CLOSE (with all possible default parameters)
+                    self.log('CLOSE CREATE, %.2f' % self.dataclose[0])
+                    # Keep track of the created order to avoid a 2nd order
+                    self.order = self.close()
+                elif self.Portfolio[self.symbol].IsShort and self.Diff_pct_close_emaIsOverMean and self.dpce[0] < self.diff_pct_close_ema_mean:
+                    # CLOSE (with all possible default parameters)
+                    self.log('CLOSE CREATE, %.2f' % self.dataclose[0])
+                    # Keep track of the created order to avoid a 2nd order
+                    self.order = self.close()
+                self.PositiveAbnormalIsOverDiff_pct_close_ema = self.positive_abnormal > self.dpce[0]
+                self.Diff_pct_close_emaIsOverNegativeAbnormal = self.dpce[0] > self.negative_abnormal
+                self.MeanIsOverDiff_pct_close_ema = self.dpce[0] < self.diff_pct_close_ema_mean
                 self.Diff_pct_close_emaIsOverMean = not self.MeanIsOverDiff_pct_close_ema
-            # Not yet ... we MIGHT BUY if ...
-            if self.dataclose[0] > self.sma[0]:
-
-                # BUY, BUY, BUY!!! (with all possible default parameters)
-                self.log('BUY CREATE, %.2f' % self.dataclose[0])
-
-                # Keep track of the created order to avoid a 2nd order
-                self.order = self.buy()
-
-        else:
-
-            if self.dataclose[0] < self.sma[0]:
-                # SELL, SELL, SELL!!! (with all possible default parameters)
-                self.log('SELL CREATE, %.2f' % self.dataclose[0])
-
-                # Keep track of the created order to avoid a 2nd order
-                self.order = self.sell()
-
+ 
     def stop(self):
         self.log('(MA Period %2d) Ending Value %.2f' %
                  (self.params.maperiod, self.broker.getvalue()), doprint=True)
 
+class Rerverser(bt.Size):
+    def _getsizing(self, comminfo, cash, data, isbuy):
+        position = self.broker.getposition(data)
+        if isbuy:
+            if position == 0: 
+                size = cash / (data * (1 + comminfo))
+            else:
+                size = position.size
+        else:
+            if position == 0: 
+                size = cash / (data * (1 + comminfo))
+            else:
+                 size = position.size
+        return size
 
 if __name__ == '__main__':
     # Create a cerebro entity
     cerebro = bt.Cerebro()
     # Add a strategy
     cerebro.addstrategy(EmaMeanReversionStrategy)
-
-'''    # Add a strategy
+    cerebro.addsizer(Rerverser)
+'''    # optimize strategy
     strats = cerebro.optstrategy(
         TestStrategy,
         maperiod=range(10, 31))
