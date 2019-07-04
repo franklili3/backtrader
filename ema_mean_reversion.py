@@ -9,24 +9,46 @@ from __future__ import (absolute_import, division, print_function,
 
 import datetime  # For datetime objects
 import pandas as pd
-
+import statistics
 
 # Import the backtrader platform
 import backtrader as bt
 
-class MySignal(bt.Indicator):
-    lines = ('signal',)
-    def __init__(self, emaperiod):
+class diff_pct_close_ema_ind(bt.Indicator):
+    lines = ('dpce',)
+
+    def __init__(self, emaperiod = self.params.emaperiod):
         self.params.emaperiod = emaperiod
-        self.addminperiod(self.params.emaperiod)
+        
         # Add a MovingAverageSimple indicator
         self.ema = bt.indicators.ExplonentialMovingAverage(
                 self.datas[0], period=self.params.emaperiod)
         self.dataclose = self.datas[0].close
-        self.diff_pct_close_ema = (self.dataclose - self.ema) / self.ema
+        self.lines.dpce = (self.dataclose - self.ema) / self.ema
         
     def next(self):
-
+        self.diff_pct_close_ema_list.append(self.diff_pct_close_ema)
+       
+        if len(self.diff_pct_close_ema_list) % self.longPeriod == 0:
+            self.diff_pct_close_ema_mean = statistics.mean(self.diff_pct_close_ema_list)
+            self.diff_pct_close_ema_std = statistics.stdev(self.diff_pct_close_ema_list)
+            self.negative_abnormal = self.diff_pct_close_ema_mean - 1.96* self.diff_pct_close_ema_std
+            self.positive_abnormal = self.diff_pct_close_ema_mean + 1.96* self.diff_pct_close_ema_std
+            self.diff_pct_close_ema_list = []
+        if self.negative_abnormal is not None:
+            if not self.Portfolio.Invested and self.Diff_pct_close_emaIsOverNegativeAbnormal and self.diff_pct_close_ema < self.negative_abnormal:
+                self.SetHoldings(self.symbol, 1, True, 'Long')
+            elif not self.Portfolio.Invested and self.PositiveAbnormalIsOverDiff_pct_close_ema and self.diff_pct_close_ema > self.positive_abnormal:
+                self.SetHoldings(self.symbol, -1, True, 'Short')
+            elif self.Portfolio[self.symbol].IsLong and self.MeanIsOverDiff_pct_close_ema and self.diff_pct_close_ema > self.diff_pct_close_ema_mean:
+                self.Liquidate(self.symbol, 'Cover')
+            elif self.Portfolio[self.symbol].IsShort and self.Diff_pct_close_emaIsOverMean and self.diff_pct_close_ema < self.diff_pct_close_ema_mean:
+                self.Liquidate(self.symbol, 'Cover')
+            self.PositiveAbnormalIsOverDiff_pct_close_ema = self.positive_abnormal > self.diff_pct_close_ema
+            self.Diff_pct_close_emaIsOverNegativeAbnormal = self.diff_pct_close_ema > self.negative_abnormal
+            self.MeanIsOverDiff_pct_close_ema = self.diff_pct_close_ema < self.diff_pct_close_ema_mean
+            self.Diff_pct_close_emaIsOverMean = not self.MeanIsOverDiff_pct_close_ema
+ 
 # Create a Stratey
 class EmaMeanReversionStrategy(bt.Strategy):
     params = (
