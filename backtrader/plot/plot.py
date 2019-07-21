@@ -124,7 +124,7 @@ class Plot_OldSync(with_metaclass(MetaParams, object)):
 
         if iplot:
             if 'ipykernel' in sys.modules:
-                matplotlib.use('nbagg')
+                matplotlib.use('qt5Agg')
 
         # this import must not happen before matplotlib.use
         import matplotlib.pyplot as mpyplot
